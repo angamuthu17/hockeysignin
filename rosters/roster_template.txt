@@ -1,31 +1,31 @@
-Goal: 
+Goal:
 Dark
 
-F- 
-F- 
-F- 
-F- 
-F- 
-F- 
+F-
+F-
+F-
+F-
+F-
+F-
 
 D-
-D- 
-D- 
-D- 
+D-
+D-
+D-
 
-Goal: 
+Goal:
 Light
 
-F- 
-F- 
 F-
-F- 
 F-
-F- 
+F-
+F-
+F-
+F-
 
-D- 
 D-
-D- 
-D- 
+D-
+D-
+D-
 
 WL:
