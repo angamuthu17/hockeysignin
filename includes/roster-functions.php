@@ -3,20 +3,102 @@
 
 $log_path = "/var/www/html/wordpress/wp-content/debug.log";
 
-// Define the mapping of days to directory names
-$day_directory_map = [
-    'Tuesday' => 'Tues1030pmCivic',
-    'Thursday' => 'Thurs1030pmCivic',
-    'Friday' => 'Fri1030pmCivic',
-    'Saturday' => 'Sat10pmCivic',
-];
-
 // Define the game schedule
 $game_schedule = ['Tuesday', 'Thursday', 'Friday', 'Saturday'];
 
-function create_next_game_roster_files($date) {
-    global $log_path, $day_directory_map;
+function get_current_season($date) {
+    $year = date('Y', strtotime($date));
+    $month_day = date('m-d', strtotime($date));
 
+    if ($month_day >= '10-01' || $month_day < '04-01') {
+        // Regular Season
+        return "RegularSeason{$year}-" . ($year + 1);
+    } elseif ($month_day >= '04-01' && $month_day < '06-01') {
+        // Spring Season
+        return "Spring{$year}";
+    } else {
+        // Summer Season
+        return "Summer{$year}";
+    }
+}
+
+function get_day_directory_map($date) {
+    $year = date('Y', strtotime($date));
+    $month_day = date('m-d', strtotime($date));
+
+    if ($month_day >= '10-01' || $month_day < '04-01') {
+        // Regular Season
+        return [
+            'Tuesday' => 'Tues1030Forum',
+            'Thursday' => 'Thur1030Civic',
+            'Friday' => 'Fri1030Forum',
+            'Saturday' => 'Sat1030Forum',
+        ];
+    } elseif ($month_day >= '04-01' && $month_day < '06-01') {
+        // Spring Season
+        return [
+            'Tuesday' => 'Tues1030Civic',
+            'Thursday' => 'Thur1030Civic',
+            'Friday' => 'Fri1030Civic',
+            'Saturday' => 'Sat1030Civic',
+        ];
+    } else {
+        // Summer Season
+        return [
+            'Tuesday' => 'Tues1030Civic',
+            'Thursday' => 'Thur1030Civic',
+            'Friday' => 'Fri1030Civic',
+            'Saturday' => 'Sat1030Civic',
+        ];
+    }
+}
+
+function calculate_next_game_day() {
+    // Get the current day of the week (1 for Monday, ..., 7 for Sunday)
+    $current_day_of_week = date('N');
+    $current_time = current_time('H:i');
+
+    // Define the game days (2 for Tuesday, 4 for Thursday, 5 for Friday, 6 for Saturday)
+    $game_days = [2, 4, 5, 6];
+
+    // Check if today is a game day and the current time is before 8 AM
+    if (in_array($current_day_of_week, $game_days) && $current_time < '08:00') {
+        return date('Y-m-d');
+    }
+
+    // Special case: From Saturday 11pm until Tuesday 7:59am, report next game as Tuesday
+    if (($current_day_of_week == 6 && $current_time >= '23:00') || ($current_day_of_week == 7) || ($current_day_of_week == 1) || ($current_day_of_week == 2 && $current_time < '08:00')) {
+        return date('Y-m-d', strtotime('next Tuesday'));
+    }
+
+    // Find the next game day
+    foreach ($game_days as $day) {
+        if ($day > $current_day_of_week) {
+            // Calculate the number of days until the next game day
+            $days_until_game_day = $day - $current_day_of_week;
+            // Return the next game day
+            return date('Y-m-d', strtotime("+$days_until_game_day days"));
+        }
+    }
+
+    // If no game day was found in the current week, return the first game day of the next week
+    $days_until_next_week = 7 - $current_day_of_week + $game_days[0];
+    return date('Y-m-d', strtotime("+$days_until_next_week days"));
+}
+
+// Check if the current time is within the game day window
+function is_game_day() {
+    $current_time = current_time('H:i');
+    $start_time = '08:00';
+    $end_time = '23:59';
+
+    return ($current_time >= $start_time && $current_time <= $end_time);
+}
+
+function create_next_game_roster_files($date) {
+    global $log_path;
+
+    $day_directory_map = get_day_directory_map($date);
     $day_of_week = date('l', strtotime($date));
     $day_directory = $day_directory_map[$day_of_week] ?? null;
     
@@ -26,12 +108,14 @@ function create_next_game_roster_files($date) {
     }
 
     $formatted_date = date('D_M_j', strtotime($date));
-    $file_path = realpath(__DIR__ . "/../rosters/") . "/Summer2024/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
+    $season = get_current_season($date);
+    $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
     
     if (!file_exists($file_path)) {
         $template_path = realpath(__DIR__ . "/../rosters/roster_template.txt");
         if (file_exists($template_path)) {
             copy($template_path, $file_path);
+            chmod($file_path, 0664); // Set file permissions to 664
             error_log("Roster file created: {$file_path}\n", 3, $log_path);
         } else {
             error_log("Roster template not found: {$template_path}\n", 3, $log_path);
@@ -40,7 +124,7 @@ function create_next_game_roster_files($date) {
 }
 
 function check_in_player($date = null, $player_name = null) {
-    global $wpdb, $log_path, $day_directory_map, $game_schedule;
+    global $wpdb, $log_path, $game_schedule;
 
     if (!$date) {
         $date = current_time('Y-m-d');
@@ -55,6 +139,7 @@ function check_in_player($date = null, $player_name = null) {
         return;
     }
 
+    $day_directory_map = get_day_directory_map($date);
     $day_of_week = date('l', strtotime($date));
     $day_directory = $day_directory_map[$day_of_week] ?? null;
 
@@ -64,7 +149,8 @@ function check_in_player($date = null, $player_name = null) {
     }
 
     $formatted_date = date('D_M_j', strtotime($date));
-    $file_path = realpath(__DIR__ . "/../rosters/") . "/Summer2024/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
+    $season = get_current_season($date);
+    $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
 
     if (file_exists($file_path)) {
         $roster = file_get_contents($file_path);
@@ -110,12 +196,14 @@ function check_in_player($date = null, $player_name = null) {
 }
 
 function check_out_player($player_name) {
-    global $log_path, $day_directory_map;
+    global $log_path;
     $date = current_time('Y-m-d');
+    $day_directory_map = get_day_directory_map($date);
     $day_of_week = date('l', strtotime($date));
     $day_directory = $day_directory_map[$day_of_week] ?? null;
     $formatted_date = date('D_M_j', strtotime($date));
-    $file_path = realpath(__DIR__ . "/../rosters/") . "/Summer2024/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
+    $season = get_current_season($date);
+    $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
 
     if (file_exists($file_path)) {
         $roster = file_get_contents($file_path);
@@ -139,48 +227,15 @@ function check_out_player($player_name) {
     }
 }
 
-function calculate_next_game_day() {
-    // Get the current day of the week (1 for Monday, ..., 7 for Sunday)
-    $current_day_of_week = date('N');
-    $current_time = current_time('H:i');
-
-    // Define the game days (2 for Tuesday, 4 for Thursday, 5 for Friday, 6 for Saturday)
-    $game_days = [2, 4, 5, 6];
-
-    // Check if today is a game day and the current time is before 8 AM
-    if (in_array($current_day_of_week, $game_days) && $current_time < '08:00') {
-        return date('Y-m-d');
-    }
-
-    // Special case: From Saturday 11pm until Tuesday 7:59am, report next game as Tuesday
-    if (($current_day_of_week == 6 && $current_time >= '23:00') || ($current_day_of_week == 7) || ($current_day_of_week == 1) || ($current_day_of_week == 2 && $current_time < '08:00')) {
-        return date('Y-m-d', strtotime('next Tuesday'));
-    }
-
-    // Find the next game day
-    foreach ($game_days as $day) {
-        if ($day > $current_day_of_week) {
-            // Calculate the number of days until the next game day
-            $days_until_game_day = $day - $current_day_of_week;
-            // Return the next game day
-            return date('Y-m-d', strtotime("+$days_until_game_day days"));
-        }
-    }
-
-    // If no game day was found in the current week, return the first game day of the next week
-    $days_until_next_week = 7 - $current_day_of_week + $game_days[0];
-    return date('Y-m-d', strtotime("+$days_until_next_week days"));
-}
-
 function update_roster($date, $player_name, $prepaid, $position = null) {
     global $log_path;
     global $wpdb;
-    global $day_directory_map;
 
     if (!$date) {
         $date = current_time('Y-m-d');
     }
 
+    $day_directory_map = get_day_directory_map($date);
     $day_of_week = date('l', strtotime($date));
     $day_directory = $day_directory_map[$day_of_week] ?? null;
     
@@ -190,7 +245,8 @@ function update_roster($date, $player_name, $prepaid, $position = null) {
     }
 
     $formatted_date = date('D_M_j', strtotime($date));
-    $file_path = realpath(__DIR__ . "/../rosters/") . "/Summer2024/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
+    $season = get_current_season($date);
+    $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
     
     if (!file_exists($file_path)) {
         error_log("Roster file not found: {$file_path}\n", 3, $log_path);
@@ -247,24 +303,23 @@ function update_roster($date, $player_name, $prepaid, $position = null) {
 
 function move_waitlist_to_roster($date) {
     global $log_path;
-    // Correct the file path as per the correct tree and your directory structure
-    $day_directory_map = [
-        'Tuesday' => 'Tues1030pmCivic',
-        'Thursday' => 'Thurs1030pmCivic',
-        'Friday' => 'Fri1030pmCivic',
-        'Saturday' => 'Sat10pmCivic',
-    ];
 
-    $day_of_week = date_i18n('l', strtotime($date)); // Convert date to day of week
+    $day_directory_map = get_day_directory_map($date);
+    $day_of_week = date_i18n('l', strtotime($date));
     $day_directory = $day_directory_map[$day_of_week] ?? null;
+
+    // Add error logs for debugging
+    error_log("Current season: " . get_current_season($date));
+    error_log("Day directory map: " . print_r($day_directory_map, true));
 
     if (!$day_directory) {
         error_log("No directory mapping found for date: {$date}\n", 3, $log_path);
         return;
     }
 
-    $formatted_date = date_i18n('D_M_j', strtotime($date)); // "Tue_Jun_18" format
-    $file_path = realpath(__DIR__ . "/../rosters/") . "/Summer2024/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
+    $formatted_date = date_i18n('D_M_j', strtotime($date));
+    $season = get_current_season($date);
+    $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
 
     if (!file_exists($file_path)) {
         error_log("Roster file not found: {$file_path}\n", 3, $log_path);
@@ -272,7 +327,7 @@ function move_waitlist_to_roster($date) {
     }
     $roster = file_get_contents($file_path);
 
-        // Check if there are any open slots
+    // Check if there are any open slots
     $positions = ['F -', 'D -', 'Goal:'];
     $open_slots = false;
     foreach ($positions as $position) {
@@ -318,15 +373,9 @@ function move_waitlist_to_roster($date) {
 
 function finalize_roster_at_930pm($date) {
     global $log_path;
-    // Correct the file path as per the correct tree and your directory structure
-    $day_directory_map = [
-        'Tuesday' => 'Tues1030pmCivic',
-        'Thursday' => 'Thurs1030pmCivic',
-        'Friday' => 'Fri1030pmCivic',
-        'Saturday' => 'Sat10pmCivic',
-    ];
 
-    $day_of_week = date_i18n('l', strtotime($date)); // Convert date to day of week
+    $day_directory_map = get_day_directory_map($date);
+    $day_of_week = date_i18n('l', strtotime($date));
     $day_directory = $day_directory_map[$day_of_week] ?? null;
 
     if (!$day_directory) {
@@ -334,8 +383,9 @@ function finalize_roster_at_930pm($date) {
         return;
     }
 
-    $formatted_date = date_i18n('D_M_j', strtotime($date)); // "Tue_Jun_18" format
-    $file_path = realpath(__DIR__ . "/../rosters/") . "/Summer2024/{$day_directory}/Pickup_Roster-{$day_of_week}_{$formatted_date}.txt";
+    $formatted_date = date_i18n('D_M_j', strtotime($date));
+    $season = get_current_season($date);
+    $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
 
     if (!file_exists($file_path)) {
         error_log("Roster file not found: {$file_path}\n", 3, $log_path);
@@ -343,20 +393,10 @@ function finalize_roster_at_930pm($date) {
     }
     $roster = file_get_contents($file_path);
     $roster .= "\n-- Roster Finalized at 9:30 PM --";
+
     if (file_put_contents($file_path, $roster) === false) {
-        // Log error or handle the error scenario
         error_log("Unable to finalize roster file: {$file_path}\n", 3, $log_path);
     }
-}
-
-
-// Check if the current time is within the game day window
-function is_game_day() {
-    $current_time = current_time('H:i');
-    $start_time = '08:00';
-    $end_time = '23:59';
-
-    return ($current_time >= $start_time && $current_time <= $end_time);
 }
 
 // Fetch the current roster from the appropriate file
@@ -380,18 +420,65 @@ function get_current_roster() {
 function display_roster() {
     error_log("display_roster function called"); // Debugging output
     if (is_game_day()) {
-        $roster = get_current_roster();
-        error_log("Current roster: " . $roster); // Debugging output
-        return nl2br($roster);
+        $date = current_time('Y-m-d');
+        $day_of_week = date('l', strtotime($date));
+        $day_directory_map = get_day_directory_map($date);
+        $day_directory = $day_directory_map[$day_of_week] ?? null;
+        $formatted_date = date('D_M_j', strtotime($date));
+        $season = get_current_season($date);
+        $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
+
+        if (file_exists($file_path)) {
+            $roster = file_get_contents($file_path);
+            error_log("Current roster: " . $roster); // Debugging output
+            return nl2br($roster);
+        } else {
+            error_log("Roster file not found: {$file_path}"); // Debugging output
+            return "Roster file not found for today.";
+        }
     } else {
-            if (file_exists($file_path)) {
-                return file_get_contents($file_path);
-            } else {
-                return "Our skates are: Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday & Saturday 10:30pm Forum.<br><br>Check in begins at 8:00am for each skate" . $next_game_day_formatted . ".";
-            }
         $next_game_day = calculate_next_game_day();
         $next_game_day_formatted = date_i18n('l, F jS', strtotime($next_game_day));
         error_log("Next scheduled skate date: " . $next_game_day); // Debugging output
         return "Our skates are Tuesday, Thursday, and Friday 10:30pm, and Saturday nights at 10:00pm - all at Halifax Civic Arena.<br><br>Check in begins at 8:00am for each skate.<br><br> The next scheduled skate date is " . $next_game_day_formatted . ".";
     }
 }
+
+function check_in_player_after_6pm($date, $player_name) {
+    global $wpdb, $log_path;
+
+    $day_of_week = date('l', strtotime($date));
+    $day_directory_map = get_day_directory_map($date);
+    $day_directory = $day_directory_map[$day_of_week] ?? null;
+    $formatted_date = date('D_M_j', strtotime($date));
+    $season = get_current_season($date);
+    $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
+
+    if (file_exists($file_path)) {
+        $roster = file_get_contents($file_path);
+
+        // Check for vacant spots
+        $positions = ['F -', 'D -', 'Goal:'];
+        $vacant_spot_found = false;
+        foreach ($positions as $position) {
+            if (strpos($roster, "{$position} \n") !== false) {
+                $roster = preg_replace("/{$position} \n/", "{$position} {$player_name}\n", $roster, 1);
+                $vacant_spot_found = true;
+                break;
+            }
+        }
+
+        if ($vacant_spot_found) {
+            file_put_contents($file_path, $roster);
+            return "You have been added to the roster. Please contact HPH admin on FB / Messenger, at payforhockey@hotmail.com or at 902-488-5590 to confirm your spot.";
+        } else {
+            return "No vacant spots available. You have been added to the waitlist.";
+        }
+    } else {
+        error_log("Roster file not found: {$file_path}");
+        return "Roster file not found for today.";
+    }
+}
+
+
+
