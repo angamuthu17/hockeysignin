@@ -139,6 +139,13 @@ function check_in_player($date = null, $player_name = null) {
         return;
     }
 
+    // Check for profanity
+    if (contains_profanity($player_name)) {
+        error_log("Profanity detected in player name: {$player_name}");
+        echo '<div class="error"><p>Inappropriate language detected. Please use a different name.</p></div>';
+        return;
+    }
+
     $day_directory_map = get_day_directory_map($date);
     $day_of_week = date('l', strtotime($date));
     $day_directory = $day_directory_map[$day_of_week] ?? null;
@@ -478,4 +485,34 @@ function check_in_player_after_6pm($date, $player_name) {
         error_log("Roster file not found: {$file_path}");
         return "Roster file not found for today.";
     }
+}
+
+function contains_profanity($text) {
+    $banned_patterns = [
+        '/\bfuck\b/i', '/fuck\w*/i',
+        '/\bshit\b/i', '/shit\w*/i',
+        '/\bbitch\b/i', '/bitch\w*/i',
+        '/\basshole\b/i', '/ass\w*/i',
+        '/\bdick\b/i', '/dick\w*/i',
+        '/\bcunt\b/i', '/cunt\w*/i',
+        '/\bslut\b/i', '/slut\w*/i',
+        '/\bwhore\b/i', '/whore\w*/i',
+        '/\bfag\b/i', '/fag\w*/i',
+        '/\bnigger\b/i', '/nigg\w*/i',
+        '/\bchink\b/i', '/chink\w*/i',
+        '/\bspic\b/i', '/spic\w*/i',
+        '/\bkike\b/i', '/kike\w*/i',
+        '/\bgook\b/i', '/gook\w*/i',
+        '/\bwop\b/i', '/wop\w*/i',
+        '/\bdago\b/i', '/dago\w*/i',
+        '/\bwetback\b/i', '/wetback\w*/i',
+        // Add more patterns as needed
+    ];
+
+    foreach ($banned_patterns as $pattern) {
+        if (preg_match($pattern, $text)) {
+            return true;
+        }
+    }
+    return false;
 }
