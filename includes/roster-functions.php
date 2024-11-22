@@ -479,6 +479,3 @@ function check_in_player_after_6pm($date, $player_name) {
         return "Roster file not found for today.";
     }
 }
-
-
-

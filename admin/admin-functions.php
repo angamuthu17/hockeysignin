@@ -1,6 +1,22 @@
 <?php
 function hockeysignin_add_admin_menu() {
     add_menu_page('Hockey Sign-in', 'Hockey Sign-in', 'manage_options', 'hockeysignin', 'hockeysignin_admin_page', 'dashicons-admin-users', 25);
+    add_submenu_page('hockeysignin', 'Settings', 'Settings', 'manage_options', 'hockeysignin_settings', 'hockeysignin_settings_page');
+}
+
+function hockeysignin_settings_page() {
+    ?>
+    <div class="wrap">
+        <h1>Hockey Sign-in Settings</h1>
+        <form method="post" action="options.php">
+            <?php
+            settings_fields('hockeysignin_settings_group');
+            do_settings_sections('hockeysignin_settings');
+            submit_button();
+            ?>
+        </form>
+    </div>
+    <?php
 }
 
 function hockeysignin_admin_page() {
@@ -13,9 +29,13 @@ function hockeysignin_admin_page() {
     $current_time = current_time('H:i');
 
     if (isset($_POST['manual_start'])) {
+        if (!isset($_POST['hockeysignin_nonce']) || !wp_verify_nonce($_POST['hockeysignin_nonce'], 'hockeysignin_action')) {
+            die('Security check failed');
+        }
+
         $manually_started_next_game_date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : get_next_game_date();
         create_next_game_roster_files($manually_started_next_game_date);
-        echo '<div class="updated"><p>Roster file created for ' . $manually_started_next_game_date . '.</p></div>';
+        echo '<div class="updated"><p>Roster file created for ' . esc_html($manually_started_next_game_date) . '.</p></div>';
     }
 
     // Check if it's past 6 PM
@@ -26,13 +46,21 @@ function hockeysignin_admin_page() {
     }
 
     if (isset($_POST['check_in_player'])) {
+        if (!isset($_POST['hockeysignin_nonce']) || !wp_verify_nonce($_POST['hockeysignin_nonce'], 'hockeysignin_action')) {
+            die('Security check failed');
+        }
+
         $player_name = sanitize_text_field($_POST['player_name']);
         $date = isset($manually_started_next_game_date) ? $manually_started_next_game_date : (isset($_POST['date']) ? sanitize_text_field($_POST['date']) : null);
         $response = check_in_player($date, $player_name);
-        echo $response;
+        echo esc_html($response);
     }
 
     if (isset($_POST['confirm_checkout'])) {
+        if (!isset($_POST['hockeysignin_nonce']) || !wp_verify_nonce($_POST['hockeysignin_nonce'], 'hockeysignin_action')) {
+            die('Security check failed');
+        }
+
         $player_name = sanitize_text_field($_POST['player_name']);
         check_out_player($player_name);
         echo '<div class="updated"><p>' . esc_html($player_name) . ' has been checked out.</p></div>';
@@ -44,12 +72,14 @@ function hockeysignin_admin_page() {
     // Create a container for the forms
     echo '<div class="hockeysignin-forms" style="flex: 1; margin-right: 20px;">';
     echo '<form method="post" action="" onsubmit="return confirm(\'Would you like to create the next scheduled game day roster?\');">';
+    wp_nonce_field('hockeysignin_action', 'hockeysignin_nonce');
     echo '<input type="hidden" name="manual_start" value="1">';
     echo '<input type="submit" class="button-primary" value="Start Next Game">';
     echo '</form>';
 
     echo '<h2>Manual Player Check-In</h2>';
     echo '<form method="post" action="">';
+    wp_nonce_field('hockeysignin_action', 'hockeysignin_nonce');
     echo '<label for="player_name">Player Name:</label>';
     echo '<input type="text" name="player_name" required>';
     echo '<label for="date">Date (optional):</label>';
@@ -119,3 +149,25 @@ function get_next_game_date() {
 require_once plugin_dir_path(__FILE__) . '../includes/roster-functions.php';
 
 add_action('admin_menu', 'hockeysignin_add_admin_menu');
+
+function hockeysignin_register_settings() {
+    register_setting('hockeysignin_settings_group', 'hockeysignin_off_state');
+    register_setting('hockeysignin_settings_group', 'hockeysignin_custom_text');
+
+    add_settings_section('hockeysignin_main_section', 'Main Settings', null, 'hockeysignin_settings');
+
+    add_settings_field('hockeysignin_off_state', 'Turn Off Sign-in', 'hockeysignin_off_state_callback', 'hockeysignin_settings', 'hockeysignin_main_section');
+    add_settings_field('hockeysignin_custom_text', 'Custom Text', 'hockeysignin_custom_text_callback', 'hockeysignin_settings', 'hockeysignin_main_section');
+}
+
+function hockeysignin_off_state_callback() {
+    $checked = get_option('hockeysignin_off_state') ? 'checked' : '';
+    echo '<input type="checkbox" name="hockeysignin_off_state" value="1" ' . $checked . '> Disable Sign-in';
+}
+
+function hockeysignin_custom_text_callback() {
+    $text = get_option('hockeysignin_custom_text', 'Sign-in is currently disabled.');
+    echo '<textarea name="hockeysignin_custom_text" rows="5" cols="50">' . esc_textarea($text) . '</textarea>';
+}
+
+add_action('admin_init', 'hockeysignin_register_settings');
