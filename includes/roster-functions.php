@@ -447,7 +447,7 @@ function display_roster() {
         $next_game_day = calculate_next_game_day();
         $next_game_day_formatted = date_i18n('l, F jS', strtotime($next_game_day));
         error_log("Next scheduled skate date: " . $next_game_day); // Debugging output
-        return "Our skates are Tuesday, Thursday, and Friday 10:30pm, and Saturday nights at 10:00pm - all at Halifax Civic Arena.<br><br>Check in begins at 8:00am for each skate.<br><br> The next scheduled skate date is " . $next_game_day_formatted . ".";
+        return "The next scheduled skate date is " . $next_game_day_formatted . ".";
     }
 }
 
