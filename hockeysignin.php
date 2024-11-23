@@ -13,6 +13,7 @@ function hockeysignin_activate() {
     // Activation code here: For now, we don't need to do anything specific upon activation.
 }
 
+// Define the files to include
 $include_files = [
     'admin/admin-functions.php',
     'public/public-functions.php',
@@ -21,14 +22,17 @@ $include_files = [
     'includes/scheduled-tasks.php'
 ];
 
-foreach ($include_files as $file) {
-    $file_path = plugin_dir_path(__FILE__) . $file;
-    if (file_exists($file_path)) {
-        require_once $file_path;
-    } else {
-        error_log("Failed to include: {$file_path}");
+// Wrap file inclusion in init hook
+add_action('plugins_loaded', function() use ($include_files) {
+    foreach ($include_files as $file) {
+        $file_path = plugin_dir_path(__FILE__) . $file;
+        if (file_exists($file_path)) {
+            require_once $file_path;
+        } else {
+            error_log("Failed to include: {$file_path}");
+        }
     }
-}
+});
 
 // Schedule the daily roster creation event if it's not already scheduled
 if (!wp_next_scheduled('create_daily_roster_files_event')) {
