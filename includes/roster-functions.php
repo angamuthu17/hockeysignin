@@ -123,83 +123,97 @@ function create_next_game_roster_files($date) {
     }
 }
 
+// New wrapper function
 function check_in_player($date = null, $player_name = null) {
-    global $wpdb, $log_path, $game_schedule;
+    // Hook the actual processing to happen after init
+    add_action('init', function() use ($date, $player_name) {
+        _do_check_in_player($date, $player_name);
+    }, 15);
+}
 
+// Internal implementation function with the original logic
+function _do_check_in_player($date = null, $player_name = null) {
+    global $wpdb, $log_path, $game_schedule;
+    
     if (!$date) {
         $date = current_time('Y-m-d');
-        $day_of_week = date('l', strtotime($date));
-        if (!in_array($day_of_week, $game_schedule)) {
-            $date = calculate_next_game_day();
-        }
     }
 
-    if (!$player_name) {
-        error_log("No player name provided for check-in.");
-        return;
-    }
+    error_log("Check-in attempt for player: {$player_name} on date: {$date}\n", 3, $log_path);
 
-    // Check for profanity
-    if (contains_profanity($player_name)) {
-        error_log("Profanity detected in player name: {$player_name}");
-        echo '<div class="error"><p>Inappropriate language detected. Please use a different name.</p></div>';
-        return;
-    }
-
-    $day_directory_map = get_day_directory_map($date);
+    // Verify if it's a game day
     $day_of_week = date('l', strtotime($date));
+    $day_directory_map = get_day_directory_map($date);
     $day_directory = $day_directory_map[$day_of_week] ?? null;
+
+    // Add error logs for debugging
+    error_log("Current season: " . get_current_season($date));
+    error_log("Day directory map: " . print_r($day_directory_map, true));
 
     if (!$day_directory) {
         error_log("No directory mapping found for date: {$date}\n", 3, $log_path);
         return;
     }
 
-    $formatted_date = date('D_M_j', strtotime($date));
+    $formatted_date = date_i18n('D_M_j', strtotime($date));
     $season = get_current_season($date);
     $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
 
-    if (file_exists($file_path)) {
-        $roster = file_get_contents($file_path);
-        if (strpos($roster, $player_name) !== false) {
-            // Player is already checked in, offer check-out option
-            echo '<div class="error"><p>' . esc_html($player_name) . ' is already checked in. Do want to check them out?</p>';
-            echo '<form method="post" action="">';
-            echo '<input type="hidden" name="player_name" value="' . esc_attr($player_name) . '">';
-            echo '<input type="hidden" name="confirm_checkout" value="1">';
-            echo '<input type="submit" class="button-primary" value="Check Out Player">';
-            echo '</form></div>';
-            return;
-        }
-    } else {
-        // Prompt the user to create the file
-        echo '<div class="error"><p>Roster file not found for ' . $date . '. Do you want to create it?</p>';
-        echo '<form method="post" action="">';
-        echo '<input type="hidden" name="manual_start" value="1">';
-        echo '<input type="hidden" name="date" value="' . $date . '">';
-        echo '<input type="submit" class="button-primary" value="Create Roster File">';
-        echo '</form></div>';
+    if (!file_exists($file_path)) {
+        error_log("Roster file not found: {$file_path}\n", 3, $log_path);
         return;
     }
-    
-    $player = $wpdb->get_row($wpdb->prepare("SELECT * FROM wp_participants_database WHERE CONCAT(`first_name`, ' ', `last_name`) = %s", $player_name));
-    
-    if ($player) {
-        $prepaid = true;
-        $position = $player->position;
-        // Check if the player is eligible for the current night
-        $active_nights = maybe_unserialize($player->active_nights);
-        if (!is_array($active_nights) || !in_array($day_of_week, $active_nights)) {
-            echo '<div class="error"><p>' . esc_html($player_name) . ' is not eligible to check in on ' . $day_of_week . '.</p></div>';
-            return;
-        }
-    } else {
-        $prepaid = false;
-        $position = null;
+
+    // Check if player exists in the database
+    $player = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM wp_participants_database WHERE CONCAT(`first_name`, ' ', `last_name`) = %s",
+        $player_name
+    ));
+
+    if (!$player) {
+        error_log("Player not found in database: {$player_name}\n", 3, $log_path);
+        return;
     }
+
+    $roster = file_get_contents($file_path);
     
-    $confirmation_message = update_roster($date, $player_name, $prepaid, $position);
-    echo '<div class="updated"><p>' . esc_html($confirmation_message) . '</p></div>';
+    // Check if player is already on the roster
+    if (strpos($roster, $player_name) !== false) {
+        error_log("Player already on roster: {$player_name}\n", 3, $log_path);
+        return;
+    }
+
+    // Check if there are any open spots
+    $positions = ['F-', 'D-', 'Goal:'];
+    $open_slots = false;
+    foreach ($positions as $position) {
+        if (strpos($roster, "{$position} \n") !== false || strpos($roster, "{$position}\n") !== false) {
+            $open_slots = true;
+            break;
+        }
+    }
+
+    // If no open spots, add to waitlist
+    if (!$open_slots) {
+        if (strpos($roster, "WL:") !== false) {
+            $roster = str_replace("WL:", "WL:\nWL: " . $player_name, $roster);
+        } else {
+            $roster .= "\nWL: " . $player_name;
+        }
+        error_log("Added player to waitlist: {$player_name}\n", 3, $log_path);
+    } else {
+        // Find and fill the first open spot
+        foreach ($positions as $position) {
+            $roster = preg_replace("/{$position} \n|{$position}\n/", "{$position} {$player_name}\n", $roster, 1, $count);
+            if ($count > 0) {
+                error_log("Added player to roster: {$player_name}\n", 3, $log_path);
+                break;
+            }
+        }
+    }
+
+    // Save the updated roster
+    file_put_contents($file_path, $roster);
 }
 
 function check_out_player($player_name) {
