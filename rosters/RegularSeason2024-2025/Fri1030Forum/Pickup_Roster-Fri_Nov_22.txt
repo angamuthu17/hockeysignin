@@ -7,6 +7,7 @@ F- Nick Nemis
 F- Sean Skinner
 F- Jon Nickerson
 F- Dylan Atkinson
+F- Sébastien Dufour
 
 D- Mark Pottie
 D- Caleb Pardy
@@ -27,16 +28,3 @@ D- Dan Grenier
 D- Sam Legere
 D- Joel Pearl
 D- Pat Hamilton
-
------------------
-
-WL: Rowan Pelley gallant
-WL: Andrew Smardon
-WL: Sébastien Dufour
-WL: Anne MacNeil
-WL: Nathan VR
-WL: Jordan Lee
-WL: Zenon Pilipowicz
-WL: Amanda Hiltchey
-WL: Kyle shannon
-
