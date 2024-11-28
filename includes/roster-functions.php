@@ -6,20 +6,48 @@ $log_path = "/var/www/html/wordpress/wp-content/debug.log";
 // Define the game schedule
 $game_schedule = ['Tuesday', 'Thursday', 'Friday', 'Saturday'];
 
-function get_current_season($date) {
-$year = date('Y', strtotime($date));
-$month_day = date('m-d', strtotime($date));
-
-if ($month_day >= '10-01' || $month_day < '04-01') {
-// Regular Season
-return "RegularSeason{$year}-" . ($year + 1);
-} elseif ($month_day >= '04-01' && $month_day < '06-01') {
-// Spring Season
-return "Spring{$year}";
-} else {
-// Summer Season
-return "Summer{$year}";
-}
+function get_current_season($date = null) {
+    error_log("get_current_season called with date: " . ($date ?? 'null'));
+    
+    if ($date === null) {
+        $date = current_time('Y-m-d');
+    }
+    
+    try {
+        error_log("Attempting to get Config instance");
+        if (!class_exists('hockeysignin\Core\Config')) {
+            error_log("Config class not found!");
+            throw new Exception("Config class not found");
+        }
+        
+        $config = hockeysignin\Core\Config::getInstance();
+        error_log("Got Config instance");
+        
+        $season_folder = $config->getSeasonFolder($date);
+        error_log("Season folder from config: " . ($season_folder ?? 'null'));
+        
+        if (!$season_folder) {
+            throw new Exception("No season folder returned from config");
+        }
+        
+        return $season_folder;
+        
+    } catch (Exception $e) {
+        error_log("Error in get_current_season: " . $e->getMessage());
+        error_log("Falling back to original logic");
+        
+        // Original logic
+        $year = date('Y', strtotime($date));
+        $month_day = date('m-d', strtotime($date));
+        
+        if ($month_day >= '10-01' || $month_day < '04-01') {
+            return "RegularSeason{$year}-" . ($year + 1);
+        } elseif ($month_day >= '04-01' && $month_day < '06-01') {
+            return "Spring{$year}";
+        } else {
+            return "Summer{$year}";
+        }
+    }
 }
 
 function get_day_directory_map($date) {
@@ -419,7 +447,7 @@ return file_get_contents($file_path);
 } else {
 $next_game_day = calculate_next_game_day();
 $next_game_day_formatted = date_i18n('l, F jS', strtotime($next_game_day));
-return "Our skates are: Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday & Saturday 10:30pm Forum.<br><br>Check in begins at 8:00am for each skate";
+return "Our skates are Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday & Saturday 10:30pm Forum.<br><br>Check in begins at 8:00am for each skate";
 }
 }
 
@@ -441,13 +469,13 @@ error_log("Current roster: " . $roster); // Debugging output
 return nl2br($roster);
 } else {
 error_log("Roster file not found: {$file_path}"); // Debugging output
-return "Roster file not found for today.";
+return "Roster file not found for today. Our skates are Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday & Saturday 10:30pm Forum.<br><br>Check in begins at 8:00am for each skate.";
 }
 } else {
 $next_game_day = calculate_next_game_day();
 $next_game_day_formatted = date_i18n('l, F jS', strtotime($next_game_day));
 error_log("Next scheduled skate date: " . $next_game_day); // Debugging output
-return "Our skates are Tuesday, Thursday, and Friday 10:30pm, and Saturday nights at 10:00pm - all at Halifax Civic Arena.<br><br>Check in begins at 8:00am for each skate.<br><br> The next scheduled skate date is " . $next_game_day_formatted . ".";
+return "Our skates are Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday & Saturday 10:30pm Forum.<br><br>Check in begins at 8:00am for each skate.<br><br> The next scheduled skate date is " . $next_game_day_formatted . ".";
 }
 }
 
@@ -483,7 +511,7 @@ return "No vacant spots available. You have been added to the waitlist.";
 }
 } else {
 error_log("Roster file not found: {$file_path}");
-return "Roster file not found for today.";
+return "Roster file not found for today.<br><br>Our skates are Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday & Saturday 10:30pm Forum.<br><br>Check in begins at 8:00am for each skate.";
 }
 }
 

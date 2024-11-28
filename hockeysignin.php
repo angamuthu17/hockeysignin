@@ -4,10 +4,40 @@
 * Plugin URI: http://halifaxpickuphockey.com
 * Description: A custom sign-in and roster management system for hockey players, integrating with Participants Database.
 * Version: 1.0
- * Author: Jason Craig, ChatGPT 4, Tabnine & Gemini AI
- * Author: Jason Craig, ChatGPT 4o, Tabnine AI, Perplexity Pro
+ * Author: Jason Craig, ChatGPT 4o, Tabnine AI, Cursor Tab, Perplexity Pro
 * Author URI: http://halifaxpickuphockey.com
 */
+
+// Add autoloader at the very beginning
+spl_autoload_register(function ($class) {
+    // Quick check for our namespace prefix to avoid unnecessary logging
+    $prefix = 'hockeysignin\\';
+    $prefix_len = strlen($prefix);
+    
+    // If the class doesn't start with our prefix, return immediately
+    if (strncmp($prefix, strtolower($class), $prefix_len) !== 0) {
+        return;
+    }
+    
+    // At this point, we know it's our namespace, so we can log
+    error_log("Loading hockeysignin class: " . $class);
+    
+    // Get the relative class name
+    $relative_class = substr($class, $prefix_len);
+    
+    // Convert namespace to file path
+    $file = plugin_dir_path(__FILE__) . 'includes' . DIRECTORY_SEPARATOR . 
+           str_replace('\\', DIRECTORY_SEPARATOR, strtolower($relative_class)) . '.php';
+    
+    error_log("Looking for file: " . $file);
+    
+    if (file_exists($file)) {
+        require_once $file;
+        error_log("Successfully loaded: " . $file);
+    } else {
+        error_log("File not found: " . $file);
+    }
+});
 
 register_activation_hook(__FILE__, 'hockeysignin_activate');
 function hockeysignin_activate() {
@@ -18,7 +48,6 @@ $include_files = [
 'admin/admin-functions.php',
 'public/public-functions.php',
 'includes/helper-functions.php',
-    'includes/roster-functions.php',
     'includes/roster-functions.php',
     'includes/scheduled-tasks.php',
 ]
