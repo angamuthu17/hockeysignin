@@ -1,5 +1,5 @@
 <?php
-namespace hockeysignin\Core;
+namespace hockeysignin\core;
 
 class Config {
     private static $instance = null;
@@ -13,16 +13,20 @@ class Config {
 
     public static function getInstance() {
         if (self::$instance === null) {
+            hockey_log("Creating new Config instance", 'debug');
             self::$instance = new self();
         }
         return self::$instance;
     }
 
     public function get($key, $default = null) {
-        return $this->config[$key] ?? $default;
+        $value = $this->config[$key] ?? $default;
+        hockey_log("Config get: {$key} = " . print_r($value, true), 'debug');
+        return $value;
     }
 
     public function getSeason($date) {
+        hockey_log("Getting season for date: {$date}", 'debug');
         $month_day = date('m-d', strtotime($date));
         
         foreach ($this->seasons as $season => $details) {
@@ -30,10 +34,12 @@ class Config {
             $end = $details['end'];
             
             if ($this->isDateInRange($month_day, $start, $end)) {
+                hockey_log("Found season: {$season}", 'debug');
                 return $details;
             }
         }
         
+        hockey_log("No season found for date: {$date}", 'warning');
         return null;
     }
 
@@ -46,14 +52,18 @@ class Config {
     }
 
     public function getSeasonFolder($date) {
+        hockey_log("Getting season folder for date: {$date}", 'debug');
         $year = date('Y', strtotime($date));
         $season_details = $this->getSeason($date);
         
         if (!$season_details) {
+            hockey_log("No season details found for date: {$date}", 'warning');
             return null;
         }
         
         $folder_format = $season_details['folder_format'];
-        return str_replace('{year}', $year, $folder_format);
+        $folder = str_replace('{year}', $year, $folder_format);
+        hockey_log("Season folder: {$folder}", 'debug');
+        return $folder;
     }
 }

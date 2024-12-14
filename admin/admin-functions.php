@@ -7,7 +7,7 @@ function hockeysignin_add_admin_menu() {
 function hockeysignin_settings_page() {
     ?>
     <div class="wrap">
-        <h1>Hockey Sign-in Settings</h1>
+            <h1>Hockey Sign-in Settings</h1>
         <form method="post" action="options.php">
             <?php
             settings_fields('hockeysignin_settings_group');
@@ -144,9 +144,6 @@ function get_next_game_date() {
 
     return date('Y-m-d', strtotime('next ' . date('l', strtotime('Sunday +' . ($next_game_day - 1) . ' days')), strtotime($today)));
 }
-
-// Include the roster functions file
-require_once plugin_dir_path(__FILE__) . '../includes/roster-functions.php';
 
 add_action('admin_menu', 'hockeysignin_add_admin_menu');
 

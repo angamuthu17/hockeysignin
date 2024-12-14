@@ -1,30 +1,22 @@
 <?php
 // Functions to manage the hockey roster files
 
-$log_path = "/var/www/html/wordpress/wp-content/debug.log";
-
 // Define the game schedule
 $game_schedule = ['Tuesday', 'Thursday', 'Friday', 'Saturday'];
 
 function get_current_season($date = null) {
-    error_log("get_current_season called with date: " . ($date ?? 'null'));
-    
     if ($date === null) {
         $date = current_time('Y-m-d');
     }
     
     try {
-        error_log("Attempting to get Config instance");
         if (!class_exists('hockeysignin\Core\Config')) {
-            error_log("Config class not found!");
             throw new Exception("Config class not found");
         }
         
         $config = hockeysignin\Core\Config::getInstance();
-        error_log("Got Config instance");
         
         $season_folder = $config->getSeasonFolder($date);
-        error_log("Season folder from config: " . ($season_folder ?? 'null'));
         
         if (!$season_folder) {
             throw new Exception("No season folder returned from config");
@@ -33,10 +25,6 @@ function get_current_season($date = null) {
         return $season_folder;
         
     } catch (Exception $e) {
-        error_log("Error in get_current_season: " . $e->getMessage());
-        error_log("Falling back to original logic");
-        
-        // Original logic
         $year = date('Y', strtotime($date));
         $month_day = date('m-d', strtotime($date));
         
@@ -124,14 +112,12 @@ return ($current_time >= $start_time && $current_time <= $end_time);
 }
 
 function create_next_game_roster_files($date) {
-global $log_path;
-
 $day_directory_map = get_day_directory_map($date);
 $day_of_week = date('l', strtotime($date));
 $day_directory = $day_directory_map[$day_of_week] ?? null;
 
 if (!$day_directory) {
-error_log("No directory mapping found for date: {$date}\n", 3, $log_path);
+hockey_log("No directory mapping found for date: {$date}", 'error');
 return;
 }
 
@@ -144,15 +130,15 @@ $template_path = realpath(__DIR__ . "/../rosters/roster_template.txt");
 if (file_exists($template_path)) {
 copy($template_path, $file_path);
 chmod($file_path, 0664); // Set file permissions to 664
-error_log("Roster file created: {$file_path}\n", 3, $log_path);
+hockey_log("Roster file created: {$file_path}", 'debug');
 } else {
-error_log("Roster template not found: {$template_path}\n", 3, $log_path);
+hockey_log("Roster template not found: {$template_path}", 'error');
 }
 }
 }
 
 function check_in_player($date = null, $player_name = null) {
-global $wpdb, $log_path, $game_schedule;
+global $wpdb, $game_schedule;
 
 if (!$date) {
 $date = current_time('Y-m-d');
@@ -163,13 +149,13 @@ $date = calculate_next_game_day();
 }
 
 if (!$player_name) {
-error_log("No player name provided for check-in.");
+hockey_log("No player name provided for check-in.", 'error');
 return;
 }
 
     // Check for profanity
     if (contains_profanity($player_name)) {
-        error_log("Profanity detected in player name: {$player_name}");
+        hockey_log("Profanity detected in player name: {$player_name}", 'error');
         echo '<div class="error"><p>Inappropriate language detected. Please use a different name.</p></div>';
         return;
     }
@@ -179,7 +165,7 @@ $day_of_week = date('l', strtotime($date));
 $day_directory = $day_directory_map[$day_of_week] ?? null;
 
 if (!$day_directory) {
-error_log("No directory mapping found for date: {$date}\n", 3, $log_path);
+hockey_log("No directory mapping found for date: {$date}", 'error');
 return;
 }
 
@@ -231,7 +217,6 @@ echo '<div class="updated"><p>' . esc_html($confirmation_message) . '</p></div>'
 }
 
 function check_out_player($player_name) {
-global $log_path;
 $date = current_time('Y-m-d');
 $day_directory_map = get_day_directory_map($date);
 $day_of_week = date('l', strtotime($date));
@@ -256,14 +241,13 @@ $updated_roster[] = $line;
 }
 
 file_put_contents($file_path, implode("\n", $updated_roster));
-error_log("Player checked out: {$player_name}\n", 3, $log_path);
+hockey_log("Player checked out: {$player_name}", 'debug');
 } else {
-error_log("Roster file not found: {$file_path}\n", 3, $log_path);
+hockey_log("Roster file not found: {$file_path}", 'error');
 }
 }
 
 function update_roster($date, $player_name, $prepaid, $position = null) {
-global $log_path;
 global $wpdb;
 
 if (!$date) {
@@ -275,7 +259,7 @@ $day_of_week = date('l', strtotime($date));
 $day_directory = $day_directory_map[$day_of_week] ?? null;
 
 if (!$day_directory) {
-error_log("No directory mapping found for date: {$date}\n", 3, $log_path);
+hockey_log("No directory mapping found for date: {$date}", 'error');
 return "No directory mapping found for date: {$date}";
 }
 
@@ -284,21 +268,21 @@ $season = get_current_season($date);
 $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
 
 if (!file_exists($file_path)) {
-error_log("Roster file not found: {$file_path}\n", 3, $log_path);
+hockey_log("Roster file not found: {$file_path}", 'error');
 return "Roster file not found: {$file_path}";
 }
 $roster = file_get_contents($file_path);
 
 // Check if the player is already on the roster
 if (strpos($roster, $player_name) !== false) {
-error_log("Player already on the roster: {$player_name}\n", 3, $log_path);
+hockey_log("Player already on the roster: {$player_name}", 'error');
 return "{$player_name} is already checked in.";
 }
 
 $player = $wpdb->get_row($wpdb->prepare("SELECT * FROM wp_participants_database WHERE CONCAT(`first_name`, ' ', `last_name`) = %s", $player_name));
 
 if ($prepaid && $player) {
-error_log("Player found in database: {$player_name}, Position: {$player->position}\n", 3, $log_path);
+hockey_log("Player found in database: {$player_name}, Position: {$player->position}", 'debug');
 
 $positions = [];
 if ($player->position == 'Goalie') {
@@ -322,13 +306,13 @@ if (!empty($open_spots)) {
 $random_spot = $open_spots[array_rand($open_spots)];
 $roster = substr_replace($roster, "{$positions[0]} {$player_name}\n", $random_spot, strlen("{$positions[0]}\n"));
 } else {
-error_log("No empty position found, adding to waitlist: {$player_name}\n", 3, $log_path);
+hockey_log("No empty position found, adding to waitlist: {$player_name}", 'debug');
 // Add prepaid player to the top of the waitlist
 $roster = preg_replace('/(WL: .*\n)/', "WL: {$player_name}\n$1", $roster, 1);
        }
    } else {
        if (strpos($roster, $player_name) === false) {
-           error_log("Player not prepaid or not found in database, adding to waitlist: {$player_name}\n", 3, $log_path);
+           hockey_log("Player not prepaid or not found in database, adding to waitlist: {$player_name}", 'debug');
            $roster .= "WL: {$player_name}\n";
        }
    }
@@ -337,18 +321,16 @@ $roster = preg_replace('/(WL: .*\n)/', "WL: {$player_name}\n$1", $roster, 1);
 }
 
 function move_waitlist_to_roster($date) {
-   global $log_path;
-
    $day_directory_map = get_day_directory_map($date);
    $day_of_week = date_i18n('l', strtotime($date));
    $day_directory = $day_directory_map[$day_of_week] ?? null;
 
    // Add error logs for debugging
-   error_log("Current season: " . get_current_season($date));
-error_log("Day directory map: " . print_r($day_directory_map, true));
+   hockey_log("Current season: " . get_current_season($date), 'debug');
+hockey_log("Day directory map: " . print_r($day_directory_map, true), 'debug');
 
 if (!$day_directory) {
-error_log("No directory mapping found for date: {$date}\n", 3, $log_path);
+hockey_log("No directory mapping found for date: {$date}", 'error');
 return;
 }
 
@@ -357,7 +339,7 @@ $season = get_current_season($date);
 $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
 
 if (!file_exists($file_path)) {
-error_log("Roster file not found: {$file_path}\n", 3, $log_path);
+hockey_log("Roster file not found: {$file_path}", 'error');
 return;
 }
 $roster = file_get_contents($file_path);
@@ -373,7 +355,7 @@ break;
 }
 
 if (!$open_slots) {
-error_log("No open slots available on the roster for date: {$date}\n", 3, $log_path);
+hockey_log("No open slots available on the roster for date: {$date}", 'error');
 return;
 }
 
@@ -407,14 +389,12 @@ file_put_contents($file_path, $roster);
 }
 
 function finalize_roster_at_930pm($date) {
-global $log_path;
-
 $day_directory_map = get_day_directory_map($date);
 $day_of_week = date_i18n('l', strtotime($date));
 $day_directory = $day_directory_map[$day_of_week] ?? null;
 
 if (!$day_directory) {
-error_log("No directory mapping found for date: {$date}\n", 3, $log_path);
+hockey_log("No directory mapping found for date: {$date}", 'error');
 return;
 }
 
@@ -423,14 +403,14 @@ $season = get_current_season($date);
 $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
 
 if (!file_exists($file_path)) {
-error_log("Roster file not found: {$file_path}\n", 3, $log_path);
+hockey_log("Roster file not found: {$file_path}", 'error');
 return;
 }
 $roster = file_get_contents($file_path);
 $roster .= "\n-- Roster Finalized at 9:30 PM --";
 
 if (file_put_contents($file_path, $roster) === false) {
-error_log("Unable to finalize roster file: {$file_path}\n", 3, $log_path);
+hockey_log("Unable to finalize roster file: {$file_path}", 'error');
 }
 }
 
@@ -453,7 +433,7 @@ return "Our skates are Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday
 
 // Display the roster or the next scheduled skate date
 function display_roster() {
-error_log("display_roster function called"); // Debugging output
+hockey_log("display_roster function called", 'debug'); // Debugging output
 if (is_game_day()) {
 $date = current_time('Y-m-d');
 $day_of_week = date('l', strtotime($date));
@@ -465,22 +445,22 @@ $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/P
 
 if (file_exists($file_path)) {
 $roster = file_get_contents($file_path);
-error_log("Current roster: " . $roster); // Debugging output
+hockey_log("Current roster: " . $roster, 'debug'); // Debugging output
 return nl2br($roster);
 } else {
-error_log("Roster file not found: {$file_path}"); // Debugging output
+hockey_log("Roster file not found: {$file_path}", 'error'); // Debugging output
 return "Roster file not found for today. Our skates are Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday & Saturday 10:30pm Forum.<br><br>Check in begins at 8:00am for each skate.";
 }
 } else {
 $next_game_day = calculate_next_game_day();
 $next_game_day_formatted = date_i18n('l, F jS', strtotime($next_game_day));
-error_log("Next scheduled skate date: " . $next_game_day); // Debugging output
+hockey_log("Next scheduled skate date: " . $next_game_day, 'debug'); // Debugging output
 return "Our skates are Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday & Saturday 10:30pm Forum.<br><br>Check in begins at 8:00am for each skate.<br><br> The next scheduled skate date is " . $next_game_day_formatted . ".";
 }
 }
 
 function check_in_player_after_6pm($date, $player_name) {
-global $wpdb, $log_path;
+global $wpdb;
 
 $day_of_week = date('l', strtotime($date));
 $day_directory_map = get_day_directory_map($date);
@@ -510,7 +490,7 @@ return "You have been added to the roster. Please contact HPH admin on FB / Mess
 return "No vacant spots available. You have been added to the waitlist.";
 }
 } else {
-error_log("Roster file not found: {$file_path}");
+hockey_log("Roster file not found: {$file_path}", 'error');
 return "Roster file not found for today.<br><br>Our skates are Tuesday 10:30pm Forum, Thursday 10:30pm Civic, and Friday & Saturday 10:30pm Forum.<br><br>Check in begins at 8:00am for each skate.";
 }
 }

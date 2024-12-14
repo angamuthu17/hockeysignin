@@ -1,4 +1,18 @@
 <?php
+add_action('create_daily_roster_files_event', 'create_daily_roster_files');
+
+function create_daily_roster_files() {
+    hockey_log("Starting daily roster file creation", 'debug');
+    
+    $current_date = current_time('Y-m-d');
+    $day_of_week = date('l', strtotime($current_date));
+    
+    hockey_log("Creating roster for date: {$current_date} ({$day_of_week})", 'debug');
+    
+    // Call the existing function to create the roster
+    create_next_game_roster_files($current_date);
+}
+
 function process_waitlist_at_6pm() {
     $current_date = current_time('Y-m-d');
     $day_of_week = date('l', strtotime($current_date));
@@ -8,19 +22,17 @@ function process_waitlist_at_6pm() {
     $season = get_current_season($current_date);
     $file_path = realpath(__DIR__ . "/../rosters/") . "/{$season}/{$day_directory}/Pickup_Roster-{$formatted_date}.txt";
     
-    // Define $local_time
     $local_time = current_time('H:i');
 
-    // Add error logs for debugging
-    error_log("Current season: " . $season);
-    error_log("Day directory map: " . print_r($day_directory_map, true));
-    error_log("process_waitlist_at_6pm called at 18:00 on {$current_date}");
-    error_log("process_waitlist_at_6pm called at $local_time on $current_date");
+    hockey_log("Current season: " . $season, 'debug');
+    hockey_log("Day directory map: " . print_r($day_directory_map, true), 'debug');
+    hockey_log("process_waitlist_at_6pm called at {$local_time} on {$current_date}", 'debug');
+
     if (file_exists($file_path)) {
         move_waitlist_to_roster($current_date);
-        error_log("Waitlist processed successfully for {$current_date}");
+        hockey_log("Waitlist processed successfully for {$current_date}", 'debug');
     } else {
-        error_log("Roster file not found: {$file_path}");
+        hockey_log("Roster file not found: {$file_path}", 'error');
     }
 }
 

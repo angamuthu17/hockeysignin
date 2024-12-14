@@ -1,8 +1,5 @@
 <?php
 
-// Include the roster functions file
-require_once plugin_dir_path(__FILE__) . '../includes/roster-functions.php';
-
 // Handle player check-in and check-out
 function hockeysignin_handle_form_submission() {
     if (isset($_POST['player_name']) && isset($_POST['action'])) {
