@@ -1,11 +1,11 @@
 <?php
 /**
 * Plugin Name: Hockey Sign-in
-* Plugin URI: http://halifaxpickuphockey.com
+* Plugin URI: http://halifaxpickuphockey.com and Test URL : https://testhph.joinapj.com/
 * Description: A custom sign-in and roster management system for hockey players, integrating with Participants Database.
 * Version: 1.0
- * Author: Jason Craig, ChatGPT 4o, Tabnine AI, Cursor Tab, Perplexity Pro
-* Author URI: http://halifaxpickuphockey.com
+ * Author: Testing by Anga. Thanks to Jason Craig, ChatGPT 4o, Tabnine AI, Cursor Tab, Perplexity Pro
+* Author Test URI: https://testhph.joinapj.com/
 */
 
 // Add filter to suppress specific debug messages
